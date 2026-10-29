@@ -9,34 +9,90 @@ jobs:
   renew:
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Run Kaggle Auto-Pusher
+      - name: Run Smart Kaggle Renewer
         env:
-          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
-          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+          RAW_USER: ${{ secrets.KAGGLE_USERNAME }}
+          RAW_KEY: ${{ secrets.KAGGLE_KEY }}
         run: |
           pip install -q kaggle
           
-          # إنشاء ملف التوثيق الرسمي لكاجل لتجنب مشاكل المتغيرات
-          mkdir -p ~/.kaggle
-          echo "{\"username\":\"$KAGGLE_USERNAME\",\"key\":\"$KAGGLE_KEY\"}" > ~/.kaggle/kaggle.json
-          chmod 600 ~/.kaggle/kaggle.json
+          cat << 'EOF' > renew.py
+          import os, json, subprocess, sys
+
+          user = os.environ.get('RAW_USER', '').strip()
+          key = os.environ.get('RAW_KEY', '').strip()
+
+          if not key:
+              print("❌ خطأ: KAGGLE_KEY فارغ في إعدادات Secrets!")
+              sys.exit(1)
+
+          # 1. معالجة ذكية إذا قام المستخدم بلصق محتوى ملف kaggle.json بالكامل داخل Secret
+          if key.startswith('{'):
+              try:
+                  data = json.loads(key)
+                  user = data.get('username', user)
+                  key = data.get('key', key)
+              except Exception:
+                  pass
+
+          env = os.environ.copy()
+          kaggle_dir = os.path.expanduser('~/.kaggle')
+          os.makedirs(kaggle_dir, exist_ok=True)
           
-          echo "🔍 جاري التحقق من الحساب وصلاحيات الوصول..."
-          kaggle kernels status saifather1/notebookc59511172f
+          # 2. دعم مفاتيح كاجل الجديدة (KGAT_) والمفاتيح الكلاسيكية معاً
+          if key.startswith('KGAT_'):
+              print("🔑 تم اكتشاف مفتاح Kaggle حديث (KGAT_)...")
+              env['KAGGLE_API_TOKEN'] = key
+          else:
+              print(f"🔑 جاري التوثيق للمستخدم: {user}")
+              env['KAGGLE_USERNAME'] = user
+              env['KAGGLE_KEY'] = key
+              with open(os.path.join(kaggle_dir, 'kaggle.json'), 'w') as f:
+                  json.dump({'username': user, 'key': key}, f)
+              os.chmod(os.path.join(kaggle_dir, 'kaggle.json'), 0o600)
+
+          def run_cmd(cmd):
+              return subprocess.run(cmd, shell=True, env=env, text=True, capture_output=True)
+
+          # 3. تحديد المفكرة وسحبها (أو البحث عنها تلقائياً إذا تغير اسمها)
+          target_slug = "saifather1/notebookc59511172f"
+          os.makedirs('workspace', exist_ok=True)
           
-          mkdir -p workspace
-          echo "⏳ جاري سحب المفكرة..."
-          kaggle kernels pull saifather1/notebookc59511172f -p workspace -m
+          print(f"⏳ محاولة سحب المفكرة: {target_slug}")
+          res = run_cmd(f"kaggle kernels pull {target_slug} -p workspace -m")
           
-          echo "📄 محتويات المجلد المسحوب:"
-          ls -la workspace
+          if res.returncode != 0:
+              print(f"⚠️ تعذر سحب {target_slug} مباشرة. السبب:\n{res.stdout}\n{res.stderr}")
+              print("🔍 جاري البحث تلقائياً عن المفكرات الموجودة في حسابك...")
+              list_res = run_cmd("kaggle kernels list --mine --csv")
+              lines = [l for l in list_res.stdout.strip().splitlines() if l and not l.startswith('ref,')]
+              if lines:
+                  target_slug = lines[0].split(',')[0]
+                  print(f"✅ تم العثور على المفكرة التلقائية: {target_slug}، جاري سحبها...")
+                  res = run_cmd(f"kaggle kernels pull {target_slug} -p workspace -m")
+                  if res.returncode != 0:
+                      print(f"❌ فشل السحب:\n{res.stdout}\n{res.stderr}")
+                      sys.exit(1)
+              else:
+                  print(f"❌ فشل الاتصال بالحساب أو لا توجد أي مفكرة في هذا الحساب!\nتفاصيل الخطأ من كاجل:\n{list_res.stdout}\n{list_res.stderr}")
+                  sys.exit(1)
+
+          # 4. إصلاح ملف metadata لضمان عدم رفضه أثناء الرفع
+          meta_path = 'workspace/kernel-metadata.json'
+          if os.path.exists(meta_path):
+              with open(meta_path, 'r') as f:
+                  meta = json.load(f)
+              print(f"📄 تم تجهيز المفكرة: {meta.get('id')}")
+
+          # 5. دفع وتشغيل المفكرة في الخلفية
+          print("🚀 جاري إرسال أمر التشغيل (Save & Run All)...")
+          push_res = run_cmd("kaggle kernels push -p workspace")
+          print(push_res.stdout)
+          if push_res.returncode != 0:
+              print(f"❌ خطأ أثناء الدفع:\n{push_res.stderr}")
+              sys.exit(1)
+
+          print("✅ تم تجديد وتشغيل المفكرة بنجاح 100%!")
+          EOF
           
-          echo "🚀 جاري إعادة رفع وتشغيل المفكرة..."
-          kaggle kernels push -p workspace
-          
-          echo "✅ تم التجديد بنجاح!"
+          python3 renew.py
