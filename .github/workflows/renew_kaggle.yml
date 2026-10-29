@@ -9,29 +9,28 @@ jobs:
   renew:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install Kaggle CLI
-        run: pip install kaggle
-
-      - name: Trigger Kaggle Notebook
+      - name: Run Kaggle Auto-Pusher
         env:
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
         run: |
-          # إنشاء مجلد وتكوين ملف الإعدادات تلقائياً
-          mkdir -p ~/.kaggle
-          echo "{\"username\":\"$KAGGLE_USERNAME\",\"key\":\"$KAGGLE_KEY\"}" > ~/.kaggle/kaggle.json
-          chmod 600 ~/.kaggle/kaggle.json
-
-          # سحب المفكرة وإعادة نشرها لتجديد التشغيل
-          mkdir -p workspace
-          cd workspace
-          kaggle kernels pull saifather1/notebookc59511172f -m
-          kaggle kernels push -p .
+          pip install kaggle
+          python3 -c "
+          import os
+          from kaggle.api.kaggle_api_extended import KaggleApi
+          
+          api = KaggleApi()
+          api.authenticate()
+          
+          print('⏳ جاري سحب وتحديث المفكرة...')
+          api.kernels_pull('saifather1/notebookc59511172f', path='workspace', metadata=True)
+          
+          print('🚀 جاري إرسال أمر التشغيل في الخلفية (Save & Run All)...')
+          api.kernels_push('workspace')
+          print('✅ تم التجديد بنجاح!')
+          "
