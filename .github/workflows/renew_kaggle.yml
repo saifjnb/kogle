@@ -19,18 +19,18 @@ jobs:
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
         run: |
-          pip install kaggle
-          python3 -c "
-          import os
-          from kaggle.api.kaggle_api_extended import KaggleApi
+          if [ -z "$KAGGLE_USERNAME" ] || [ -z "$KAGGLE_KEY" ]; then
+            echo "❌ خطأ: لم يتم العثور على KAGGLE_USERNAME أو KAGGLE_KEY في Secrets!"
+            exit 1
+          fi
           
-          api = KaggleApi()
-          api.authenticate()
+          pip install -q kaggle
+          mkdir -p workspace
           
-          print('⏳ جاري سحب وتحديث المفكرة...')
-          api.kernels_pull('saifather1/notebookc59511172f', path='workspace', metadata=True)
+          echo "⏳ جاري سحب وتحديث المفكرة..."
+          kaggle kernels pull saifather1/notebookc59511172f -p workspace -m
           
-          print('🚀 جاري إرسال أمر التشغيل في الخلفية (Save & Run All)...')
-          api.kernels_push('workspace')
-          print('✅ تم التجديد بنجاح!')
-          "
+          echo "🚀 جاري إرسال أمر التشغيل في الخلفية (Save & Run All)..."
+          kaggle kernels push -p workspace
+          
+          echo "✅ تم التجديد بنجاح!"
