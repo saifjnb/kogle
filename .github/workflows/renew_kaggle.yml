@@ -25,3 +25,4 @@ jobs:
           kaggle kernels pull saifather1/notebookc59511172f -m
           # إرسال أمر التشغيل الفوري في الخلفية (Save & Run All) لمدة 12 ساعة جديدة!
           kaggle kernels push -p .
+
