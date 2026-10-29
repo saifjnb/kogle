@@ -3,7 +3,6 @@ name: Auto Renew Kaggle Bot 24/7
 on:
   workflow_dispatch:
   schedule:
-    # يرسل أمر تجديد تشغيل سيرفر Kaggle تلقائياً كل 11 ساعة و30 دقيقة للأبد
     - cron: '30 */11 * * *'
 
 jobs:
@@ -11,18 +10,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: تثبيت أداة Kaggle الرسمية
-        run: pip install -q kaggle
+        run: pip install --upgrade kaggle
 
-      - name: سحب المفكرة وإعادة تشغيلها في الخلفية تلقائياً
+      - name: إعداد التوثيق وإعادة تشغيل المفكرة
         env:
-          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
-          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
-          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_KEY }}
+          K_USER: ${{ secrets.KAGGLE_USERNAME }}
+          K_KEY: ${{ secrets.KAGGLE_KEY }}
         run: |
+          if [ -z "$K_KEY" ]; then
+            echo "❌ خطأ: لم تقم بإضافة KAGGLE_KEY في قسم Secrets!"
+            exit 1
+          fi
+
+          # إنشاء ملف التوثيق الرسمي لضمان عمل المفتاح 100%
+          mkdir -p ~/.kaggle
+          CLEAN_KEY="${K_KEY#KGAT_}"
+          echo "{\"username\":\"${K_USER:-saifather1}\",\"key\":\"$CLEAN_KEY\"}" > ~/.kaggle/kaggle.json
+          chmod 600 ~/.kaggle/kaggle.json
+
+          # تفعيل التوكن الحديث أيضاً في حال تطلبه التحديث
+          export KAGGLE_API_TOKEN="$K_KEY"
+
           mkdir -p kbot
           cd kbot
-          # سحب آخر نسخة من مفكرتك مع إعداداتها ومصادرها
+          
+          echo "⏳ جاري سحب المفكرة من حسابك..."
           kaggle kernels pull saifather1/notebookc59511172f -m
-          # إرسال أمر التشغيل الفوري في الخلفية (Save & Run All) لمدة 12 ساعة جديدة!
+          
+          echo "🚀 جاري إرسال أمر التشغيل الجديد..."
           kaggle kernels push -p .
-
