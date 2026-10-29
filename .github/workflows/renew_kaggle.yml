@@ -19,18 +19,24 @@ jobs:
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
         run: |
-          if [ -z "$KAGGLE_USERNAME" ] || [ -z "$KAGGLE_KEY" ]; then
-            echo "❌ خطأ: لم يتم العثور على KAGGLE_USERNAME أو KAGGLE_KEY في Secrets!"
-            exit 1
-          fi
-          
           pip install -q kaggle
-          mkdir -p workspace
           
-          echo "⏳ جاري سحب وتحديث المفكرة..."
+          # إنشاء ملف التوثيق الرسمي لكاجل لتجنب مشاكل المتغيرات
+          mkdir -p ~/.kaggle
+          echo "{\"username\":\"$KAGGLE_USERNAME\",\"key\":\"$KAGGLE_KEY\"}" > ~/.kaggle/kaggle.json
+          chmod 600 ~/.kaggle/kaggle.json
+          
+          echo "🔍 جاري التحقق من الحساب وصلاحيات الوصول..."
+          kaggle kernels status saifather1/notebookc59511172f
+          
+          mkdir -p workspace
+          echo "⏳ جاري سحب المفكرة..."
           kaggle kernels pull saifather1/notebookc59511172f -p workspace -m
           
-          echo "🚀 جاري إرسال أمر التشغيل في الخلفية (Save & Run All)..."
+          echo "📄 محتويات المجلد المسحوب:"
+          ls -la workspace
+          
+          echo "🚀 جاري إعادة رفع وتشغيل المفكرة..."
           kaggle kernels push -p workspace
           
           echo "✅ تم التجديد بنجاح!"
