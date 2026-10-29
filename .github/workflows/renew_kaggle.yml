@@ -1,0 +1,26 @@
+name: Auto Renew Kaggle Bot 24/7
+
+on:
+  workflow_dispatch:
+  schedule:
+    # يرسل أمر تجديد تشغيل سيرفر Kaggle تلقائياً كل 11 ساعة و30 دقيقة للأبد
+    - cron: '30 */11 * * *'
+
+jobs:
+  trigger-kaggle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: تثبيت أداة Kaggle الرسمية
+        run: pip install -q kaggle
+
+      - name: سحب المفكرة وإعادة تشغيلها في الخلفية تلقائياً
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: |
+          mkdir -p kbot
+          cd kbot
+          # سحب آخر نسخة من مفكرتك مع إعداداتها ومصادرها
+          kaggle kernels pull saifather1/notebookc59511172f -m
+          # إرسال أمر التشغيل الفوري في الخلفية (Save & Run All) لمدة 12 ساعة جديدة!
+          kaggle kernels push -p .
