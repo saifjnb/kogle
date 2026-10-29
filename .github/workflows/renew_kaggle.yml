@@ -6,36 +6,32 @@ on:
     - cron: '30 */11 * * *'
 
 jobs:
-  trigger-kaggle:
+  renew:
     runs-on: ubuntu-latest
     steps:
-      - name: تثبيت أداة Kaggle الرسمية
-        run: pip install --upgrade kaggle
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - name: إعداد التوثيق وإعادة تشغيل المفكرة
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Kaggle CLI
+        run: pip install kaggle
+
+      - name: Trigger Kaggle Notebook
         env:
-          K_USER: ${{ secrets.KAGGLE_USERNAME }}
-          K_KEY: ${{ secrets.KAGGLE_KEY }}
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
         run: |
-          if [ -z "$K_KEY" ]; then
-            echo "❌ خطأ: لم تقم بإضافة KAGGLE_KEY في قسم Secrets!"
-            exit 1
-          fi
-
-          # إنشاء ملف التوثيق الرسمي لضمان عمل المفتاح 100%
+          # إنشاء مجلد وتكوين ملف الإعدادات تلقائياً
           mkdir -p ~/.kaggle
-          CLEAN_KEY="${K_KEY#KGAT_}"
-          echo "{\"username\":\"${K_USER:-saifather1}\",\"key\":\"$CLEAN_KEY\"}" > ~/.kaggle/kaggle.json
+          echo "{\"username\":\"$KAGGLE_USERNAME\",\"key\":\"$KAGGLE_KEY\"}" > ~/.kaggle/kaggle.json
           chmod 600 ~/.kaggle/kaggle.json
 
-          # تفعيل التوكن الحديث أيضاً في حال تطلبه التحديث
-          export KAGGLE_API_TOKEN="$K_KEY"
-
-          mkdir -p kbot
-          cd kbot
-          
-          echo "⏳ جاري سحب المفكرة من حسابك..."
+          # سحب المفكرة وإعادة نشرها لتجديد التشغيل
+          mkdir -p workspace
+          cd workspace
           kaggle kernels pull saifather1/notebookc59511172f -m
-          
-          echo "🚀 جاري إرسال أمر التشغيل الجديد..."
           kaggle kernels push -p .
